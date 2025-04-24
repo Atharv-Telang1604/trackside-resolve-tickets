@@ -12,13 +12,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Complaint, ComplaintType } from "@/types";
-import { PlusCircle, ClipboardList } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { FileUpload } from "@/components/FileUpload"; 
+import { AttachmentViewer } from "@/components/AttachmentViewer";
+import { Attachment, AttachmentType, Complaint, ComplaintType } from "@/types";
+import { PlusCircle, ClipboardList, Phone, HelpCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 const CustomerDashboard = () => {
   const { currentUser, logout } = useAuth();
-  const { getUserComplaints, submitComplaint } = useComplaints();
+  const { getUserComplaints, submitComplaint, addAttachment, getEmergencyContacts } = useComplaints();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -29,6 +32,7 @@ const CustomerDashboard = () => {
   }
 
   const userComplaints = getUserComplaints(currentUser.id);
+  const emergencyContacts = getEmergencyContacts();
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -36,6 +40,58 @@ const CustomerDashboard = () => {
       
       <main className="container mx-auto py-6 px-4">
         <h1 className="text-2xl font-bold mb-6">Customer Dashboard</h1>
+        
+        {/* Emergency Contacts Quick Access */}
+        <div className="mb-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Emergency Contacts</CardTitle>
+                  <CardDescription>Quick access to important contacts</CardDescription>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => navigate('/help')}
+                  className="flex items-center gap-1"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                  Help & FAQ
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {emergencyContacts.slice(0, 3).map((contact) => (
+                  <div key={contact.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
+                      <Phone className="h-5 w-5 text-blue-600 dark:text-blue-300" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{contact.name}</p>
+                      <a 
+                        href={`tel:${contact.phoneNumber}`} 
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {contact.phoneNumber}
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-center">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => navigate('/help')}
+                >
+                  View All Contacts
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
         
         <Tabs defaultValue="track" className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
@@ -54,7 +110,11 @@ const CustomerDashboard = () => {
           </TabsContent>
           
           <TabsContent value="new">
-            <NewComplaintForm userId={currentUser.id} submitComplaint={submitComplaint} />
+            <NewComplaintForm 
+              userId={currentUser.id} 
+              submitComplaint={submitComplaint} 
+              addAttachment={addAttachment}
+            />
           </TabsContent>
         </Tabs>
       </main>
@@ -130,6 +190,13 @@ const TrackComplaints = ({ complaints }: { complaints: Complaint[] }) => {
                       <p className="mt-1">{complaint.department}</p>
                     </div>
                   )}
+                  
+                  {complaint.attachments && complaint.attachments.length > 0 && (
+                    <>
+                      <Separator className="my-3" />
+                      <AttachmentViewer attachments={complaint.attachments} />
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -149,13 +216,21 @@ interface NewComplaintFormProps {
     location: string,
     description: string
   ) => Promise<Complaint>;
+  addAttachment: (
+    complaintId: string,
+    type: AttachmentType,
+    url: string,
+    name: string
+  ) => Promise<Attachment>;
 }
 
-const NewComplaintForm = ({ userId, submitComplaint }: NewComplaintFormProps) => {
+const NewComplaintForm = ({ userId, submitComplaint, addAttachment }: NewComplaintFormProps) => {
   const [type, setType] = useState<ComplaintType>("electrical");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newComplaintId, setNewComplaintId] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const { toast } = useToast();
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -163,16 +238,13 @@ const NewComplaintForm = ({ userId, submitComplaint }: NewComplaintFormProps) =>
     setIsSubmitting(true);
     
     try {
-      await submitComplaint(userId, type, location, description);
+      const complaint = await submitComplaint(userId, type, location, description);
+      setNewComplaintId(complaint.id);
       toast({
         title: "Complaint Submitted",
-        description: "Your complaint has been successfully submitted and is being processed.",
+        description: "Your complaint has been successfully submitted. You can now add attachments.",
         variant: "default",
       });
-      // Clear form
-      setType("electrical");
-      setLocation("");
-      setDescription("");
     } catch (error) {
       toast({
         title: "Submission Error",
@@ -182,6 +254,24 @@ const NewComplaintForm = ({ userId, submitComplaint }: NewComplaintFormProps) =>
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleFileUpload = async (file: File, fileType: AttachmentType) => {
+    if (!newComplaintId) return;
+    
+    // In a real app, you would upload the file to a server or storage service
+    // For this demo, we'll create a fake URL
+    const fakeUrl = URL.createObjectURL(file);
+    
+    await addAttachment(newComplaintId, fileType, fakeUrl, file.name);
+  };
+  
+  const handleReset = () => {
+    setType("electrical");
+    setLocation("");
+    setDescription("");
+    setNewComplaintId(null);
+    setSelectedFiles([]);
   };
   
   return (
@@ -194,57 +284,91 @@ const NewComplaintForm = ({ userId, submitComplaint }: NewComplaintFormProps) =>
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="type">Issue Type</Label>
-              <Select
-                value={type}
-                onValueChange={(value) => setType(value as ComplaintType)}
+          {!newComplaintId ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="type">Issue Type</Label>
+                <Select
+                  value={type}
+                  onValueChange={(value) => setType(value as ComplaintType)}
+                >
+                  <SelectTrigger id="type">
+                    <SelectValue placeholder="Select issue type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="electrical">Electrical</SelectItem>
+                    <SelectItem value="cleanliness">Cleanliness</SelectItem>
+                    <SelectItem value="wifi">WiFi</SelectItem>
+                    <SelectItem value="safety">Safety</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="location">Location</Label>
+                <Input
+                  id="location"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g., Coach B3, Train 42"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Please describe the issue in detail..."
+                  rows={5}
+                  required
+                />
+              </div>
+              
+              <Button
+                type="submit"
+                className="w-full bg-railway-600 hover:bg-railway-700 mt-4"
+                disabled={isSubmitting}
               >
-                <SelectTrigger id="type">
-                  <SelectValue placeholder="Select issue type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="electrical">Electrical</SelectItem>
-                  <SelectItem value="cleanliness">Cleanliness</SelectItem>
-                  <SelectItem value="wifi">WiFi</SelectItem>
-                  <SelectItem value="safety">Safety</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+                {isSubmitting ? "Submitting..." : "Submit Complaint"}
+              </Button>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                <h3 className="text-green-800 dark:text-green-400 font-medium mb-1">
+                  Complaint Submitted Successfully
+                </h3>
+                <p className="text-sm text-green-700 dark:text-green-500">
+                  Your complaint has been recorded. You can add attachments to provide more information.
+                </p>
+              </div>
+              
+              <div className="space-y-4">
+                <h3 className="font-medium">Add Attachments (Optional)</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  You can upload images, videos, or documents related to your complaint.
+                </p>
+                
+                <FileUpload 
+                  complaintId={newComplaintId} 
+                  onFileUpload={handleFileUpload}
+                />
+              </div>
+              
+              <div className="flex justify-end mt-6 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={handleReset}
+                >
+                  Submit Another Complaint
+                </Button>
+              </div>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
-              <Input
-                id="location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g., Coach B3, Train 42"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Please describe the issue in detail..."
-                rows={5}
-                required
-              />
-            </div>
-            
-            <Button
-              type="submit"
-              className="w-full bg-railway-600 hover:bg-railway-700 mt-4"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Submitting..." : "Submit Complaint"}
-            </Button>
-          </form>
+          )}
         </CardContent>
       </Card>
     </div>

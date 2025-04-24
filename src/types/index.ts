@@ -20,6 +20,37 @@ export interface Complaint {
   description: string;
   status: ComplaintStatus;
   department?: string;
+  attachments?: Attachment[];
   createdAt: string;
   updatedAt: string;
+}
+
+// Attachment Types
+export type AttachmentType = 'image' | 'video' | 'document';
+
+export interface Attachment {
+  id: string;
+  complaintId: string;
+  type: AttachmentType;
+  url: string;
+  name: string;
+  createdAt: string;
+}
+
+// Emergency Contact Types
+export interface EmergencyContact {
+  id: string;
+  name: string;
+  role: string;
+  phoneNumber: string;
+  email?: string;
+  department: string;
+}
+
+// FAQ Types
+export interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
 }

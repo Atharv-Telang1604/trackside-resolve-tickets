@@ -1,7 +1,15 @@
 
 import { createContext, useContext, ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Complaint, ComplaintStatus, ComplaintType } from "@/types";
+import { 
+  Complaint, 
+  ComplaintStatus, 
+  ComplaintType, 
+  Attachment, 
+  AttachmentType, 
+  EmergencyContact,
+  FAQ
+} from "@/types";
 import { db } from "@/services/db";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -22,6 +30,15 @@ interface ComplaintContextType {
   getUserComplaints: (userId: string) => Complaint[];
   getAllComplaints: () => Complaint[];
   getComplaintById: (complaintId: string) => Complaint | undefined;
+  getComplaintsByDepartment: (department: string) => Complaint[];
+  addAttachment: (
+    complaintId: string,
+    type: AttachmentType,
+    url: string,
+    name: string
+  ) => Promise<Attachment>;
+  getEmergencyContacts: () => EmergencyContact[];
+  getFAQs: () => FAQ[];
 }
 
 const ComplaintContext = createContext<ComplaintContextType | undefined>(undefined);
@@ -34,6 +51,18 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
   const { data: complaints = [], isLoading } = useQuery({
     queryKey: ['complaints'],
     queryFn: () => db.getComplaints(),
+  });
+  
+  // Fetch emergency contacts
+  const { data: emergencyContacts = [] } = useQuery({
+    queryKey: ['emergencyContacts'],
+    queryFn: () => db.getEmergencyContacts(),
+  });
+  
+  // Fetch FAQs
+  const { data: faqs = [] } = useQuery({
+    queryKey: ['faqs'],
+    queryFn: () => db.getFAQs(),
   });
 
   // Submit complaint mutation
@@ -82,6 +111,30 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
       });
     },
   });
+  
+  // Add attachment mutation
+  const addAttachmentMutation = useMutation({
+    mutationFn: (data: {
+      complaintId: string;
+      type: AttachmentType;
+      url: string;
+      name: string;
+    }) => db.addAttachment(data.complaintId, data.type, data.url, data.name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      toast({
+        title: "Success",
+        description: "Attachment added successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add attachment",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Submit a new complaint
   const submitComplaint = async (
@@ -101,6 +154,16 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
   ): Promise<Complaint | null> => {
     return updateStatusMutation.mutateAsync({ complaintId, status, department });
   };
+  
+  // Add attachment to a complaint
+  const addAttachment = async (
+    complaintId: string,
+    type: AttachmentType,
+    url: string,
+    name: string
+  ): Promise<Attachment> => {
+    return addAttachmentMutation.mutateAsync({ complaintId, type, url, name });
+  };
 
   // Get complaints for a specific user
   const getUserComplaints = (userId: string): Complaint[] => {
@@ -112,9 +175,24 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
     return complaints;
   };
 
+  // Get complaints by department
+  const getComplaintsByDepartment = (department: string): Complaint[] => {
+    return complaints.filter(complaint => complaint.department === department);
+  };
+
   // Get a specific complaint by ID
   const getComplaintById = (complaintId: string): Complaint | undefined => {
     return complaints.find(complaint => complaint.id === complaintId);
+  };
+  
+  // Get emergency contacts
+  const getEmergencyContacts = (): EmergencyContact[] => {
+    return emergencyContacts;
+  };
+  
+  // Get FAQs
+  const getFAQs = (): FAQ[] => {
+    return faqs;
   };
 
   return (
@@ -127,6 +205,10 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
         getUserComplaints,
         getAllComplaints,
         getComplaintById,
+        getComplaintsByDepartment,
+        addAttachment,
+        getEmergencyContacts,
+        getFAQs,
       }}
     >
       {children}

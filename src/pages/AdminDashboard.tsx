@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { Complaint, ComplaintStatus, ComplaintType } from "@/types";
 import { 
   Search, 
@@ -20,9 +22,20 @@ import {
   AlertTriangle, 
   CheckSquare,
   CalendarClock,
-  LayoutDashboard
+  LayoutDashboard,
+  Folder,
+  FolderOpen
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+
+// Available departments
+const DEPARTMENTS = [
+  "Electrical Maintenance",
+  "Housekeeping",
+  "IT Services",
+  "Safety & Security",
+  "General Services",
+];
 
 const AdminDashboard = () => {
   const { currentUser, logout } = useAuth();
@@ -33,8 +46,10 @@ const AdminDashboard = () => {
   // States for filtering
   const [statusFilter, setStatusFilter] = useState<ComplaintStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<ComplaintType | "all">("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string | "all">("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredComplaints, setFilteredComplaints] = useState<Complaint[]>([]);
+  const [view, setView] = useState<"list" | "department">("list");
   
   // Redirect if not authenticated as admin
   if (!currentUser || currentUser.role !== "admin") {
@@ -59,6 +74,11 @@ const AdminDashboard = () => {
       result = result.filter(complaint => complaint.type === typeFilter);
     }
     
+    // Filter by department
+    if (departmentFilter !== "all") {
+      result = result.filter(complaint => complaint.department === departmentFilter);
+    }
+    
     // Filter by search term
     if (searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
@@ -70,7 +90,7 @@ const AdminDashboard = () => {
     }
     
     setFilteredComplaints(result);
-  }, [allComplaints, statusFilter, typeFilter, searchTerm]);
+  }, [allComplaints, statusFilter, typeFilter, departmentFilter, searchTerm]);
   
   // Handle status update
   const handleStatusUpdate = async (complaintId: string, status: ComplaintStatus, department?: string) => {
@@ -97,6 +117,15 @@ const AdminDashboard = () => {
     resolved: allComplaints.filter(c => c.status === "resolved").length,
   };
 
+  // Group complaints by department
+  const complaintsByDepartment = DEPARTMENTS.reduce<Record<string, Complaint[]>>((acc, dept) => {
+    acc[dept] = allComplaints.filter(c => c.department === dept);
+    return acc;
+  }, {});
+  
+  // Unassigned complaints
+  const unassignedComplaints = allComplaints.filter(c => !c.department);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Navbar userRole="admin" onLogout={logout} />
@@ -108,6 +137,27 @@ const AdminDashboard = () => {
             <p className="text-gray-500 dark:text-gray-400">
               Manage and resolve customer complaints
             </p>
+          </div>
+          
+          <div className="mt-4 sm:mt-0 flex gap-2">
+            <Button
+              variant={view === "list" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("list")}
+              className="flex items-center gap-1"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              List View
+            </Button>
+            <Button
+              variant={view === "department" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("department")}
+              className="flex items-center gap-1"
+            >
+              <Folder className="h-4 w-4" />
+              Department View
+            </Button>
           </div>
         </div>
         
@@ -139,99 +189,26 @@ const AdminDashboard = () => {
           />
         </div>
         
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="mb-6">
-            <TabsTrigger value="all">All Complaints</TabsTrigger>
-            <TabsTrigger value="pending">Pending</TabsTrigger>
-            <TabsTrigger value="routed">Routed</TabsTrigger>
-            <TabsTrigger value="resolved">Resolved</TabsTrigger>
-          </TabsList>
-          
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <Input
-                  placeholder="Search by location or description..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              
-              <div className="flex flex-wrap gap-2 md:gap-4">
-                <div className="w-full sm:w-auto flex items-center gap-2">
-                  <Filter size={18} className="text-gray-500" />
-                  <Select
-                    value={statusFilter}
-                    onValueChange={(value) => setStatusFilter(value as ComplaintStatus | "all")}
-                  >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="routed">Routed</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="w-full sm:w-auto flex items-center gap-2">
-                  <CalendarClock size={18} className="text-gray-500" />
-                  <Select
-                    value={typeFilter}
-                    onValueChange={(value) => setTypeFilter(value as ComplaintType | "all")}
-                  >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Filter by type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="electrical">Electrical</SelectItem>
-                      <SelectItem value="cleanliness">Cleanliness</SelectItem>
-                      <SelectItem value="wifi">WiFi</SelectItem>
-                      <SelectItem value="safety">Safety</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <TabsContent value="all">
-            <ComplaintsList 
-              complaints={filteredComplaints} 
-              onStatusUpdate={handleStatusUpdate} 
-            />
-          </TabsContent>
-          
-          <TabsContent value="pending">
-            <ComplaintsList 
-              complaints={filteredComplaints.filter(c => c.status === "pending")} 
-              onStatusUpdate={handleStatusUpdate} 
-            />
-          </TabsContent>
-          
-          <TabsContent value="routed">
-            <ComplaintsList 
-              complaints={filteredComplaints.filter(c => 
-                c.status === "routed" || c.status === "in-progress"
-              )} 
-              onStatusUpdate={handleStatusUpdate} 
-            />
-          </TabsContent>
-          
-          <TabsContent value="resolved">
-            <ComplaintsList 
-              complaints={filteredComplaints.filter(c => c.status === "resolved")} 
-              onStatusUpdate={handleStatusUpdate} 
-            />
-          </TabsContent>
-        </Tabs>
+        {view === "list" ? (
+          <ListViewComplaints 
+            filteredComplaints={filteredComplaints}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            typeFilter={typeFilter}
+            setTypeFilter={setTypeFilter}
+            departmentFilter={departmentFilter}
+            setDepartmentFilter={setDepartmentFilter}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            handleStatusUpdate={handleStatusUpdate}
+          />
+        ) : (
+          <DepartmentViewComplaints 
+            complaintsByDepartment={complaintsByDepartment}
+            unassignedComplaints={unassignedComplaints}
+            handleStatusUpdate={handleStatusUpdate}
+          />
+        )}
       </main>
     </div>
   );
@@ -260,6 +237,219 @@ const StatsCard = ({ title, value, icon, className }: StatsCardProps) => {
         </div>
       </CardContent>
     </Card>
+  );
+};
+
+// List View Component
+interface ListViewComplaintsProps {
+  filteredComplaints: Complaint[];
+  statusFilter: ComplaintStatus | "all";
+  setStatusFilter: (status: ComplaintStatus | "all") => void;
+  typeFilter: ComplaintType | "all";
+  setTypeFilter: (type: ComplaintType | "all") => void;
+  departmentFilter: string | "all";
+  setDepartmentFilter: (department: string | "all") => void;
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  handleStatusUpdate: (complaintId: string, status: ComplaintStatus, department?: string) => void;
+}
+
+const ListViewComplaints = ({
+  filteredComplaints,
+  statusFilter,
+  setStatusFilter,
+  typeFilter,
+  setTypeFilter,
+  departmentFilter,
+  setDepartmentFilter,
+  searchTerm,
+  setSearchTerm,
+  handleStatusUpdate
+}: ListViewComplaintsProps) => {
+  return (
+    <>
+      <Tabs defaultValue="all" className="w-full">
+        <TabsList className="mb-6">
+          <TabsTrigger value="all">All Complaints</TabsTrigger>
+          <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="routed">Routed</TabsTrigger>
+          <TabsTrigger value="resolved">Resolved</TabsTrigger>
+        </TabsList>
+        
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+              <Input
+                placeholder="Search by location or description..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <div className="flex flex-wrap gap-2 md:gap-4">
+              <div className="w-full sm:w-auto flex items-center gap-2">
+                <Filter size={18} className="text-gray-500" />
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => setStatusFilter(value as ComplaintStatus | "all")}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="routed">Routed</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="w-full sm:w-auto flex items-center gap-2">
+                <CalendarClock size={18} className="text-gray-500" />
+                <Select
+                  value={typeFilter}
+                  onValueChange={(value) => setTypeFilter(value as ComplaintType | "all")}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filter by type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="electrical">Electrical</SelectItem>
+                    <SelectItem value="cleanliness">Cleanliness</SelectItem>
+                    <SelectItem value="wifi">WiFi</SelectItem>
+                    <SelectItem value="safety">Safety</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="w-full sm:w-auto flex items-center gap-2">
+                <FolderOpen size={18} className="text-gray-500" />
+                <Select
+                  value={departmentFilter}
+                  onValueChange={(value) => setDepartmentFilter(value)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filter by department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {DEPARTMENTS.map((dept) => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <TabsContent value="all">
+          <ComplaintsList 
+            complaints={filteredComplaints} 
+            onStatusUpdate={handleStatusUpdate} 
+          />
+        </TabsContent>
+        
+        <TabsContent value="pending">
+          <ComplaintsList 
+            complaints={filteredComplaints.filter(c => c.status === "pending")} 
+            onStatusUpdate={handleStatusUpdate} 
+          />
+        </TabsContent>
+        
+        <TabsContent value="routed">
+          <ComplaintsList 
+            complaints={filteredComplaints.filter(c => 
+              c.status === "routed" || c.status === "in-progress"
+            )} 
+            onStatusUpdate={handleStatusUpdate} 
+          />
+        </TabsContent>
+        
+        <TabsContent value="resolved">
+          <ComplaintsList 
+            complaints={filteredComplaints.filter(c => c.status === "resolved")} 
+            onStatusUpdate={handleStatusUpdate} 
+          />
+        </TabsContent>
+      </Tabs>
+    </>
+  );
+};
+
+// Department View Component
+interface DepartmentViewComplaintsProps {
+  complaintsByDepartment: Record<string, Complaint[]>;
+  unassignedComplaints: Complaint[];
+  handleStatusUpdate: (complaintId: string, status: ComplaintStatus, department?: string) => void;
+}
+
+const DepartmentViewComplaints = ({
+  complaintsByDepartment,
+  unassignedComplaints,
+  handleStatusUpdate
+}: DepartmentViewComplaintsProps) => {
+  return (
+    <div className="space-y-8">
+      {/* Unassigned Complaints */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="bg-yellow-100 dark:bg-yellow-900 p-2 rounded-full">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+          </div>
+          <h2 className="text-lg font-semibold">Unassigned Complaints ({unassignedComplaints.length})</h2>
+        </div>
+        
+        {unassignedComplaints.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center text-gray-500">
+              No unassigned complaints at the moment.
+            </CardContent>
+          </Card>
+        ) : (
+          <ComplaintsList 
+            complaints={unassignedComplaints} 
+            onStatusUpdate={handleStatusUpdate} 
+          />
+        )}
+      </div>
+      
+      {/* Department-wise Complaints */}
+      {DEPARTMENTS.map((department) => (
+        <div key={department}>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
+              <Folder className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h2 className="text-lg font-semibold">
+              {department} ({complaintsByDepartment[department]?.length || 0})
+            </h2>
+          </div>
+          
+          {!complaintsByDepartment[department] || complaintsByDepartment[department].length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center text-gray-500">
+                No complaints assigned to this department.
+              </CardContent>
+            </Card>
+          ) : (
+            <ComplaintsList 
+              complaints={complaintsByDepartment[department]} 
+              onStatusUpdate={handleStatusUpdate} 
+            />
+          )}
+          
+          <Separator className="my-8" />
+        </div>
+      ))}
+    </div>
   );
 };
 
@@ -345,6 +535,12 @@ const ComplaintsList = ({ complaints, onStatusUpdate }: ComplaintsListProps) => 
                 <div className="text-sm text-gray-500 dark:text-gray-400">
                   Date: {formatDate(complaint.createdAt)}
                 </div>
+                
+                {complaint.attachments && complaint.attachments.length > 0 && (
+                  <div className="mt-3">
+                    <AttachmentViewer attachments={complaint.attachments} />
+                  </div>
+                )}
               </div>
               
               <div className="md:col-span-1 flex flex-col gap-2">
