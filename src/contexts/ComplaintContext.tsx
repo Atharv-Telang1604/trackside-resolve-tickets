@@ -1,45 +1,13 @@
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, ReactNode } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Complaint, ComplaintStatus, ComplaintType } from "@/types";
-
-// Sample initial complaints for demonstration
-const INITIAL_COMPLAINTS: Complaint[] = [
-  {
-    id: "comp-1",
-    userId: "customer-1",
-    type: "electrical",
-    location: "Coach B3, Train 42",
-    description: "Electrical socket not working in my seat",
-    status: "pending",
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "comp-2",
-    userId: "customer-1",
-    type: "cleanliness",
-    location: "Bathroom in Coach A2, Train 37",
-    description: "Bathroom is not clean",
-    status: "routed",
-    department: "Maintenance",
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: "comp-3",
-    userId: "customer-1",
-    type: "wifi",
-    location: "Entire Train 29",
-    description: "WiFi not working throughout journey",
-    status: "resolved",
-    department: "IT Services",
-    createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
+import { db } from "@/services/db";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ComplaintContextType {
   complaints: Complaint[];
+  isLoading: boolean;
   submitComplaint: (
     userId: string,
     type: ComplaintType,
@@ -59,7 +27,61 @@ interface ComplaintContextType {
 const ComplaintContext = createContext<ComplaintContextType | undefined>(undefined);
 
 export function ComplaintProvider({ children }: { children: ReactNode }) {
-  const [complaints, setComplaints] = useState<Complaint[]>(INITIAL_COMPLAINTS);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Fetch all complaints
+  const { data: complaints = [], isLoading } = useQuery({
+    queryKey: ['complaints'],
+    queryFn: () => db.getComplaints(),
+  });
+
+  // Submit complaint mutation
+  const submitMutation = useMutation({
+    mutationFn: (data: { 
+      userId: string; 
+      type: ComplaintType; 
+      location: string; 
+      description: string; 
+    }) => db.addComplaint(data.userId, data.type, data.location, data.description),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      toast({
+        title: "Success",
+        description: "Complaint submitted successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to submit complaint",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update complaint status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: (data: { 
+      complaintId: string; 
+      status: ComplaintStatus; 
+      department?: string; 
+    }) => db.updateComplaintStatus(data.complaintId, data.status, data.department),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['complaints'] });
+      toast({
+        title: "Success",
+        description: "Complaint status updated successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update complaint status",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Submit a new complaint
   const submitComplaint = async (
@@ -68,21 +90,7 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
     location: string,
     description: string
   ): Promise<Complaint> => {
-    const now = new Date().toISOString();
-    
-    const newComplaint: Complaint = {
-      id: `comp-${complaints.length + 1}`,
-      userId,
-      type,
-      location,
-      description,
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    setComplaints([...complaints, newComplaint]);
-    return newComplaint;
+    return submitMutation.mutateAsync({ userId, type, location, description });
   };
 
   // Update complaint status
@@ -91,22 +99,7 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
     status: ComplaintStatus,
     department?: string
   ): Promise<Complaint | null> => {
-    const now = new Date().toISOString();
-    
-    const updatedComplaints = complaints.map(complaint => {
-      if (complaint.id === complaintId) {
-        return {
-          ...complaint,
-          status,
-          department: department || complaint.department,
-          updatedAt: now,
-        };
-      }
-      return complaint;
-    });
-
-    setComplaints(updatedComplaints);
-    return updatedComplaints.find(complaint => complaint.id === complaintId) || null;
+    return updateStatusMutation.mutateAsync({ complaintId, status, department });
   };
 
   // Get complaints for a specific user
@@ -128,6 +121,7 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
     <ComplaintContext.Provider
       value={{
         complaints,
+        isLoading,
         submitComplaint,
         updateComplaintStatus,
         getUserComplaints,
