@@ -1,4 +1,3 @@
-
 // User Types
 export interface User {
   id: string;
@@ -23,6 +22,33 @@ export interface Complaint {
   attachments?: Attachment[];
   createdAt: string;
   updatedAt: string;
+}
+
+// Notification Types
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
+// Message Types
+export interface Message {
+  id: string;
+  complaintId: string;
+  senderId: string;
+  content: string;
+  isAutoResponse: boolean;
+  createdAt: string;
+}
+
+// Department SLA Configuration
+export interface DepartmentSLA {
+  department: string;
+  responseTimeHours: number;
+  resolutionTimeHours: number;
 }
 
 // Attachment Types

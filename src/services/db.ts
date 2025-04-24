@@ -1,8 +1,16 @@
+import { 
+  Complaint, 
+  ComplaintStatus, 
+  ComplaintType, 
+  Attachment, 
+  EmergencyContact, 
+  FAQ, 
+  AttachmentType,
+  Notification,
+  Message,
+  DepartmentSLA
+} from "@/types";
 
-import { Complaint, ComplaintStatus, ComplaintType, User, Attachment, EmergencyContact, FAQ, AttachmentType } from "@/types";
-
-// This is a mock SQLite implementation for demonstration
-// In a real app, you would use better-sqlite3 or similar
 class DB {
   private complaints: Complaint[] = [];
   private attachments: Attachment[] = [];
@@ -63,8 +71,31 @@ class DB {
       category: "Contacts",
     }
   ];
+  private notifications: Notification[] = [];
+  private messages: Message[] = [];
+  private departmentSLAs: DepartmentSLA[] = [
+    {
+      department: "Electrical",
+      responseTimeHours: 2,
+      resolutionTimeHours: 24
+    },
+    {
+      department: "IT Services",
+      responseTimeHours: 1,
+      resolutionTimeHours: 12
+    },
+    {
+      department: "Safety & Security",
+      responseTimeHours: 0.5,
+      resolutionTimeHours: 4
+    },
+    {
+      department: "Cleanliness",
+      responseTimeHours: 3,
+      resolutionTimeHours: 24
+    }
+  ];
 
-  // Complaint Methods
   async getComplaints(): Promise<Complaint[]> {
     return this.complaints;
   }
@@ -77,6 +108,17 @@ class DB {
     return this.complaints.filter(c => c.department === department);
   }
 
+  private getAppropiateDepartment(type: ComplaintType): string {
+    const departmentMap: Record<ComplaintType, string> = {
+      'electrical': 'Electrical',
+      'wifi': 'IT Services',
+      'safety': 'Safety & Security',
+      'cleanliness': 'Cleanliness',
+      'other': 'Customer Service'
+    };
+    return departmentMap[type];
+  }
+
   async addComplaint(
     userId: string,
     type: ComplaintType,
@@ -84,6 +126,8 @@ class DB {
     description: string
   ): Promise<Complaint> {
     const now = new Date().toISOString();
+    const department = this.getAppropiateDepartment(type);
+    
     const newComplaint: Complaint = {
       id: `comp-${this.complaints.length + 1}`,
       userId,
@@ -91,12 +135,29 @@ class DB {
       location,
       description,
       status: "pending",
+      department,
       createdAt: now,
       updatedAt: now,
       attachments: []
     };
     
     this.complaints.push(newComplaint);
+
+    // Create auto-response message
+    await this.createMessage(
+      newComplaint.id,
+      'system',
+      `Your complaint has been received and assigned to the ${department} department. We aim to respond within ${this.departmentSLAs.find(sla => sla.department === department)?.responseTimeHours} hours.`,
+      true
+    );
+
+    // Create notification for user
+    await this.createNotification(
+      userId,
+      "Complaint Submitted",
+      `Your ${type} complaint has been received and assigned to the ${department} department.`
+    );
+
     return newComplaint;
   }
 
@@ -119,6 +180,21 @@ class DB {
       c.id === complaintId ? updatedComplaint : c
     );
 
+    // Create notification for status update
+    await this.createNotification(
+      complaint.userId,
+      "Complaint Status Updated",
+      `Your complaint status has been updated to ${status}.`
+    );
+
+    // Add status update message
+    await this.createMessage(
+      complaintId,
+      'system',
+      `Complaint status updated to: ${status}`,
+      true
+    );
+
     return updatedComplaint;
   }
 
@@ -126,7 +202,6 @@ class DB {
     return this.complaints.find(c => c.id === id) || null;
   }
 
-  // Attachment Methods
   async addAttachment(
     complaintId: string, 
     type: AttachmentType, 
@@ -159,18 +234,66 @@ class DB {
     return this.attachments.filter(a => a.complaintId === complaintId);
   }
 
-  // Emergency Contact Methods
   async getEmergencyContacts(): Promise<EmergencyContact[]> {
     return this.emergencyContacts;
   }
 
-  // FAQ Methods
   async getFAQs(): Promise<FAQ[]> {
     return this.faqs;
   }
 
   async getFAQsByCategory(category: string): Promise<FAQ[]> {
     return this.faqs.filter(faq => faq.category === category);
+  }
+
+  async createNotification(
+    userId: string,
+    title: string,
+    message: string
+  ): Promise<Notification> {
+    const notification: Notification = {
+      id: `notif-${this.notifications.length + 1}`,
+      userId,
+      title,
+      message,
+      read: false,
+      createdAt: new Date().toISOString()
+    };
+    this.notifications.push(notification);
+    return notification;
+  }
+
+  async getNotifications(userId: string): Promise<Notification[]> {
+    return this.notifications.filter(n => n.userId === userId);
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<void> {
+    const notification = this.notifications.find(n => n.id === notificationId);
+    if (notification) {
+      notification.read = true;
+    }
+  }
+
+  async createMessage(
+    complaintId: string,
+    senderId: string,
+    content: string,
+    isAutoResponse = false
+  ): Promise<Message> {
+    const message: Message = {
+      id: `msg-${this.messages.length + 1}`,
+      complaintId,
+      senderId,
+      content,
+      isAutoResponse,
+      createdAt: new Date().toISOString()
+    };
+    this.messages.push(message);
+    return message;
+  }
+
+  async getMessagesByComplaintId(complaintId: string): Promise<Message[]> {
+    return this.messages.filter(m => m.complaintId === complaintId);
   }
 }
 

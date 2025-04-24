@@ -1,4 +1,3 @@
-
 import { createContext, useContext, ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -8,7 +7,9 @@ import {
   Attachment, 
   AttachmentType, 
   EmergencyContact,
-  FAQ
+  FAQ,
+  Notification,
+  Message
 } from "@/types";
 import { db } from "@/services/db";
 import { useToast } from "@/components/ui/use-toast";
@@ -39,6 +40,10 @@ interface ComplaintContextType {
   ) => Promise<Attachment>;
   getEmergencyContacts: () => EmergencyContact[];
   getFAQs: () => FAQ[];
+  notifications: Notification[];
+  markNotificationAsRead: (notificationId: string) => Promise<void>;
+  getComplaintMessages: (complaintId: string) => Message[];
+  addMessage: (complaintId: string, senderId: string, content: string) => Promise<Message>;
 }
 
 const ComplaintContext = createContext<ComplaintContextType | undefined>(undefined);
@@ -47,25 +52,26 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Fetch all complaints
   const { data: complaints = [], isLoading } = useQuery({
     queryKey: ['complaints'],
     queryFn: () => db.getComplaints(),
   });
-  
-  // Fetch emergency contacts
+
   const { data: emergencyContacts = [] } = useQuery({
     queryKey: ['emergencyContacts'],
     queryFn: () => db.getEmergencyContacts(),
   });
-  
-  // Fetch FAQs
+
   const { data: faqs = [] } = useQuery({
     queryKey: ['faqs'],
     queryFn: () => db.getFAQs(),
   });
 
-  // Submit complaint mutation
+  const { data: notifications = [] } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => db.getNotifications(currentUser?.id || ''),
+  });
+
   const submitMutation = useMutation({
     mutationFn: (data: { 
       userId: string; 
@@ -89,7 +95,6 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Update complaint status mutation
   const updateStatusMutation = useMutation({
     mutationFn: (data: { 
       complaintId: string; 
@@ -111,8 +116,7 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
       });
     },
   });
-  
-  // Add attachment mutation
+
   const addAttachmentMutation = useMutation({
     mutationFn: (data: {
       complaintId: string;
@@ -136,7 +140,25 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Submit a new complaint
+  const markAsReadMutation = useMutation({
+    mutationFn: (notificationId: string) => db.markNotificationAsRead(notificationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+
+  const addMessageMutation = useMutation({
+    mutationFn: (data: { complaintId: string; senderId: string; content: string }) => 
+      db.createMessage(data.complaintId, data.senderId, data.content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      toast({
+        title: "Message sent",
+        description: "Your message has been sent successfully",
+      });
+    },
+  });
+
   const submitComplaint = async (
     userId: string,
     type: ComplaintType,
@@ -146,7 +168,6 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
     return submitMutation.mutateAsync({ userId, type, location, description });
   };
 
-  // Update complaint status
   const updateComplaintStatus = async (
     complaintId: string,
     status: ComplaintStatus,
@@ -154,8 +175,7 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
   ): Promise<Complaint | null> => {
     return updateStatusMutation.mutateAsync({ complaintId, status, department });
   };
-  
-  // Add attachment to a complaint
+
   const addAttachment = async (
     complaintId: string,
     type: AttachmentType,
@@ -165,34 +185,44 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
     return addAttachmentMutation.mutateAsync({ complaintId, type, url, name });
   };
 
-  // Get complaints for a specific user
   const getUserComplaints = (userId: string): Complaint[] => {
     return complaints.filter(complaint => complaint.userId === userId);
   };
 
-  // Get all complaints (for admin)
   const getAllComplaints = (): Complaint[] => {
     return complaints;
   };
 
-  // Get complaints by department
   const getComplaintsByDepartment = (department: string): Complaint[] => {
     return complaints.filter(complaint => complaint.department === department);
   };
 
-  // Get a specific complaint by ID
   const getComplaintById = (complaintId: string): Complaint | undefined => {
     return complaints.find(complaint => complaint.id === complaintId);
   };
-  
-  // Get emergency contacts
+
   const getEmergencyContacts = (): EmergencyContact[] => {
     return emergencyContacts;
   };
-  
-  // Get FAQs
+
   const getFAQs = (): FAQ[] => {
     return faqs;
+  };
+
+  const getComplaintMessages = (complaintId: string): Message[] => {
+    const { data: messages = [] } = useQuery({
+      queryKey: ['messages', complaintId],
+      queryFn: () => db.getMessagesByComplaintId(complaintId),
+    });
+    return messages;
+  };
+
+  const addMessage = async (
+    complaintId: string,
+    senderId: string,
+    content: string
+  ): Promise<Message> => {
+    return addMessageMutation.mutateAsync({ complaintId, senderId, content });
   };
 
   return (
@@ -209,6 +239,10 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
         addAttachment,
         getEmergencyContacts,
         getFAQs,
+        notifications,
+        markNotificationAsRead: (id: string) => markAsReadMutation.mutateAsync(id),
+        getComplaintMessages,
+        addMessage,
       }}
     >
       {children}
