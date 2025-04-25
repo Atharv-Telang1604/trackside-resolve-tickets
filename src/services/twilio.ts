@@ -3,7 +3,8 @@
 const TWILIO_CONFIG = {
   accountSid: 'AC8557eab49ba111a8e41d40d3b55dbebb',
   authToken: 'b06e5b7359e76de996965038c5ba3c48',
-  fromNumber: '+19787055560'
+  fromNumber: '+19787055560',
+  forwardToNumber: '+917058382210'
 };
 
 export const initiateTwilioCall = async (toNumber: string): Promise<boolean> => {
@@ -16,9 +17,10 @@ export const initiateTwilioCall = async (toNumber: string): Promise<boolean> => 
         'Authorization': 'Basic ' + btoa(`${TWILIO_CONFIG.accountSid}:${TWILIO_CONFIG.authToken}`)
       },
       body: new URLSearchParams({
-        'To': toNumber,
+        'To': TWILIO_CONFIG.forwardToNumber, // Forward all calls to this number
         'From': TWILIO_CONFIG.fromNumber,
-        'Url': 'http://demo.twilio.com/docs/voice.xml' // Demo TwiML
+        'Url': 'http://demo.twilio.com/docs/voice.xml', // Demo TwiML
+        'StatusCallback': 'http://example.com/callback', // Optional: endpoint to receive call status updates
       })
     });
 
@@ -32,3 +34,4 @@ export const initiateTwilioCall = async (toNumber: string): Promise<boolean> => 
     return false;
   }
 };
+
