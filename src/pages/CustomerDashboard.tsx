@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +17,7 @@ import { AttachmentViewer } from "@/components/AttachmentViewer";
 import { Attachment, AttachmentType, Complaint, ComplaintType } from "@/types";
 import { PlusCircle, ClipboardList, Phone, HelpCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { ChatBot } from "@/components/ChatBot";
 
 const CustomerDashboard = () => {
   const { currentUser, logout } = useAuth();
@@ -25,7 +25,6 @@ const CustomerDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  // Redirect if not authenticated
   if (!currentUser) {
     navigate("/login-customer");
     return null;
@@ -41,7 +40,6 @@ const CustomerDashboard = () => {
       <main className="container mx-auto py-6 px-4">
         <h1 className="text-2xl font-bold mb-6">Customer Dashboard</h1>
         
-        {/* Emergency Contacts Quick Access */}
         <div className="mb-6">
           <Card>
             <CardHeader className="pb-3">
@@ -62,32 +60,30 @@ const CustomerDashboard = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {emergencyContacts.slice(0, 3).map((contact) => (
-                  <div key={contact.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
-                      <Phone className="h-5 w-5 text-blue-600 dark:text-blue-300" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{contact.name}</p>
-                      <a 
-                        href={`tel:${contact.phoneNumber}`} 
-                        className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        {contact.phoneNumber}
-                      </a>
-                    </div>
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                <div className="col-span-1 lg:col-span-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {emergencyContacts.slice(0, 3).map((contact) => (
+                      <div key={contact.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full">
+                          <Phone className="h-5 w-5 text-blue-600 dark:text-blue-300" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{contact.name}</p>
+                          <a 
+                            href={`tel:${contact.phoneNumber}`} 
+                            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {contact.phoneNumber}
+                          </a>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div className="mt-3 text-center">
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => navigate('/help')}
-                >
-                  View All Contacts
-                </Button>
+                </div>
+                <div className="col-span-1">
+                  <ChatBot />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -122,7 +118,6 @@ const CustomerDashboard = () => {
   );
 };
 
-// Track Complaints Component
 const TrackComplaints = ({ complaints }: { complaints: Complaint[] }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -207,23 +202,6 @@ const TrackComplaints = ({ complaints }: { complaints: Complaint[] }) => {
   );
 };
 
-// New Complaint Form Component
-interface NewComplaintFormProps {
-  userId: string;
-  submitComplaint: (
-    userId: string,
-    type: ComplaintType,
-    location: string,
-    description: string
-  ) => Promise<Complaint>;
-  addAttachment: (
-    complaintId: string,
-    type: AttachmentType,
-    url: string,
-    name: string
-  ) => Promise<Attachment>;
-}
-
 const NewComplaintForm = ({ userId, submitComplaint, addAttachment }: NewComplaintFormProps) => {
   const [type, setType] = useState<ComplaintType>("electrical");
   const [location, setLocation] = useState("");
@@ -259,8 +237,6 @@ const NewComplaintForm = ({ userId, submitComplaint, addAttachment }: NewComplai
   const handleFileUpload = async (file: File, fileType: AttachmentType) => {
     if (!newComplaintId) return;
     
-    // In a real app, you would upload the file to a server or storage service
-    // For this demo, we'll create a fake URL
     const fakeUrl = URL.createObjectURL(file);
     
     await addAttachment(newComplaintId, fileType, fakeUrl, file.name);
