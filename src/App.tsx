@@ -4,8 +4,6 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
-import { RailmadadProvider } from "./contexts/RailmadadProvider";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import LoginCustomer from "./pages/LoginCustomer";
@@ -14,13 +12,15 @@ import Register from "./pages/Register";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Help from "./pages/Help";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ComplaintProvider } from "./contexts/ComplaintContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <RailmadadProvider>
+      <ComplaintProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -37,7 +37,7 @@ const App = () => (
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
-      </RailmadadProvider>
+      </ComplaintProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

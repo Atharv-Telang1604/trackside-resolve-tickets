@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useComplaints } from "@/contexts/complaints/ComplaintsContext";
-import { useSupport } from "@/contexts/support/SupportContext";
+import { useComplaints } from "@/contexts/ComplaintContext";
 import { Navbar } from "@/components/Navbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -20,26 +19,9 @@ import { PlusCircle, ClipboardList, Phone, HelpCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ChatBot } from "@/components/ChatBot";
 
-interface NewComplaintFormProps {
-  userId: string;
-  submitComplaint: (
-    userId: string,
-    type: ComplaintType,
-    location: string,
-    description: string
-  ) => Promise<Complaint>;
-  addAttachment: (
-    complaintId: string,
-    type: AttachmentType,
-    url: string,
-    name: string
-  ) => Promise<Attachment>;
-}
-
 const CustomerDashboard = () => {
   const { currentUser, logout } = useAuth();
-  const { getUserComplaints, submitComplaint, addAttachment } = useComplaints();
-  const { getEmergencyContacts } = useSupport();
+  const { getUserComplaints, submitComplaint, addAttachment, getEmergencyContacts } = useComplaints();
   const navigate = useNavigate();
   const { toast } = useToast();
   

@@ -1,6 +1,3 @@
-import { ref, set, get, push, update, remove, query, orderByChild, equalTo } from "firebase/database";
-import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import { database, storage } from "@/services/firebase";
 import { 
   Complaint, 
   ComplaintStatus, 
@@ -15,6 +12,8 @@ import {
 } from "@/types";
 
 class DB {
+  private complaints: Complaint[] = [];
+  private attachments: Attachment[] = [];
   private emergencyContacts: EmergencyContact[] = [
     {
       id: "ec-1",
@@ -40,7 +39,6 @@ class DB {
       department: "IT Services",
     }
   ];
-
   private faqs: FAQ[] = [
     {
       id: "faq-1",
@@ -73,7 +71,8 @@ class DB {
       category: "Contacts",
     }
   ];
-
+  private notifications: Notification[] = [];
+  private messages: Message[] = [];
   private departmentSLAs: DepartmentSLA[] = [
     {
       department: "Electrical",
@@ -98,158 +97,15 @@ class DB {
   ];
 
   async getComplaints(): Promise<Complaint[]> {
-    try {
-      const complaintsRef = ref(database, 'complaints');
-      const snapshot = await get(complaintsRef);
-      
-      if (snapshot.exists()) {
-        const complaintsData = snapshot.val();
-        const complaints: Complaint[] = await Promise.all(
-          Object.entries(complaintsData).map(async ([id, data]: [string, any]) => {
-            const attachmentsSnapshot = await get(ref(database, `attachments/${id}`));
-            const attachments: Attachment[] = [];
-            
-            if (attachmentsSnapshot.exists()) {
-              const attachmentsData = attachmentsSnapshot.val();
-              Object.entries(attachmentsData).forEach(([attachId, attachData]: [string, any]) => {
-                attachments.push({
-                  id: attachId,
-                  complaintId: id,
-                  type: attachData.type,
-                  url: attachData.url,
-                  name: attachData.name,
-                  createdAt: attachData.createdAt,
-                });
-              });
-            }
-            
-            return {
-              id,
-              userId: data.userId,
-              type: data.type,
-              location: data.location,
-              description: data.description,
-              status: data.status,
-              department: data.department,
-              attachments,
-              createdAt: data.createdAt,
-              updatedAt: data.updatedAt,
-            };
-          })
-        );
-        return complaints;
-      }
-      return [];
-    } catch (error) {
-      console.error("Error getting complaints:", error);
-      return [];
-    }
+    return this.complaints;
   }
 
   async getComplaintsByUser(userId: string): Promise<Complaint[]> {
-    try {
-      const complaintsRef = query(
-        ref(database, 'complaints'),
-        orderByChild('userId'),
-        equalTo(userId)
-      );
-      const snapshot = await get(complaintsRef);
-      
-      if (snapshot.exists()) {
-        const complaintsData = snapshot.val();
-        const complaints: Complaint[] = await Promise.all(
-          Object.entries(complaintsData).map(async ([id, data]: [string, any]) => {
-            const attachmentsSnapshot = await get(ref(database, `attachments/${id}`));
-            const attachments: Attachment[] = [];
-            
-            if (attachmentsSnapshot.exists()) {
-              const attachmentsData = attachmentsSnapshot.val();
-              Object.entries(attachmentsData).forEach(([attachId, attachData]: [string, any]) => {
-                attachments.push({
-                  id: attachId,
-                  complaintId: id,
-                  type: attachData.type,
-                  url: attachData.url,
-                  name: attachData.name,
-                  createdAt: attachData.createdAt,
-                });
-              });
-            }
-            
-            return {
-              id,
-              userId: data.userId,
-              type: data.type,
-              location: data.location,
-              description: data.description,
-              status: data.status,
-              department: data.department,
-              attachments,
-              createdAt: data.createdAt,
-              updatedAt: data.updatedAt,
-            };
-          })
-        );
-        return complaints;
-      }
-      return [];
-    } catch (error) {
-      console.error("Error getting complaints by user:", error);
-      return [];
-    }
+    return this.complaints.filter(c => c.userId === userId);
   }
 
   async getComplaintsByDepartment(department: string): Promise<Complaint[]> {
-    try {
-      const complaintsRef = query(
-        ref(database, 'complaints'),
-        orderByChild('department'),
-        equalTo(department)
-      );
-      const snapshot = await get(complaintsRef);
-      
-      if (snapshot.exists()) {
-        const complaintsData = snapshot.val();
-        const complaints: Complaint[] = await Promise.all(
-          Object.entries(complaintsData).map(async ([id, data]: [string, any]) => {
-            const attachmentsSnapshot = await get(ref(database, `attachments/${id}`));
-            const attachments: Attachment[] = [];
-            
-            if (attachmentsSnapshot.exists()) {
-              const attachmentsData = attachmentsSnapshot.val();
-              Object.entries(attachmentsData).forEach(([attachId, attachData]: [string, any]) => {
-                attachments.push({
-                  id: attachId,
-                  complaintId: id,
-                  type: attachData.type,
-                  url: attachData.url,
-                  name: attachData.name,
-                  createdAt: attachData.createdAt,
-                });
-              });
-            }
-            
-            return {
-              id,
-              userId: data.userId,
-              type: data.type,
-              location: data.location,
-              description: data.description,
-              status: data.status,
-              department: data.department,
-              attachments,
-              createdAt: data.createdAt,
-              updatedAt: data.updatedAt,
-            };
-          })
-        );
-        return complaints;
-      }
-      return [];
-    } catch (error) {
-      console.error("Error getting complaints by department:", error);
-      return [];
-    }
+    return this.complaints.filter(c => c.department === department);
   }
 
   private getAppropiateDepartment(type: ComplaintType): string {
@@ -272,10 +128,8 @@ class DB {
     const now = new Date().toISOString();
     const department = this.getAppropiateDepartment(type);
     
-    const newComplaintRef = push(ref(database, 'complaints'));
-    const complaintId = newComplaintRef.key!;
-    
-    const newComplaint: Omit<Complaint, 'id' | 'attachments'> = {
+    const newComplaint: Complaint = {
+      id: `comp-${this.complaints.length + 1}`,
       userId,
       type,
       location,
@@ -284,28 +138,27 @@ class DB {
       department,
       createdAt: now,
       updatedAt: now,
+      attachments: []
     };
     
-    await set(newComplaintRef, newComplaint);
+    this.complaints.push(newComplaint);
 
+    // Create auto-response message
     await this.createMessage(
-      complaintId,
+      newComplaint.id,
       'system',
       `Your complaint has been received and assigned to the ${department} department. We aim to respond within ${this.departmentSLAs.find(sla => sla.department === department)?.responseTimeHours} hours.`,
       true
     );
 
+    // Create notification for user
     await this.createNotification(
       userId,
       "Complaint Submitted",
       `Your ${type} complaint has been received and assigned to the ${department} department.`
     );
 
-    return {
-      id: complaintId,
-      ...newComplaint,
-      attachments: []
-    };
+    return newComplaint;
   }
 
   async updateComplaintStatus(
@@ -313,69 +166,40 @@ class DB {
     status: ComplaintStatus,
     department?: string
   ): Promise<Complaint | null> {
-    try {
-      const complaintRef = ref(database, `complaints/${complaintId}`);
-      const snapshot = await get(complaintRef);
-      
-      if (!snapshot.exists()) return null;
-      
-      const complaintData = snapshot.val();
-      const updatedAt = new Date().toISOString();
-      
-      await update(complaintRef, {
-        status,
-        department: department || complaintData.department,
-        updatedAt
-      });
+    const complaint = this.complaints.find(c => c.id === complaintId);
+    if (!complaint) return null;
 
-      await this.createNotification(
-        complaintData.userId,
-        "Complaint Status Updated",
-        `Your complaint status has been updated to ${status}.`
-      );
+    const updatedComplaint = {
+      ...complaint,
+      status,
+      department: department || complaint.department,
+      updatedAt: new Date().toISOString(),
+    };
 
-      await this.createMessage(
-        complaintId,
-        'system',
-        `Complaint status updated to: ${status}`,
-        true
-      );
+    this.complaints = this.complaints.map(c => 
+      c.id === complaintId ? updatedComplaint : c
+    );
 
-      const updatedSnap = await get(complaintRef);
-      const updated = updatedSnap.val();
-      const attachments = await this.getAttachmentsByComplaintId(complaintId);
-      
-      return {
-        id: complaintId,
-        ...updated,
-        attachments
-      };
-    } catch (error) {
-      console.error("Error updating complaint status:", error);
-      return null;
-    }
+    // Create notification for status update
+    await this.createNotification(
+      complaint.userId,
+      "Complaint Status Updated",
+      `Your complaint status has been updated to ${status}.`
+    );
+
+    // Add status update message
+    await this.createMessage(
+      complaintId,
+      'system',
+      `Complaint status updated to: ${status}`,
+      true
+    );
+
+    return updatedComplaint;
   }
 
   async getComplaintById(id: string): Promise<Complaint | null> {
-    try {
-      const complaintRef = ref(database, `complaints/${id}`);
-      const snapshot = await get(complaintRef);
-      
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const attachments = await this.getAttachmentsByComplaintId(id);
-        
-        return {
-          id,
-          ...data,
-          attachments
-        };
-      }
-      return null;
-    } catch (error) {
-      console.error("Error getting complaint by id:", error);
-      return null;
-    }
+    return this.complaints.find(c => c.id === id) || null;
   }
 
   async addAttachment(
@@ -384,64 +208,30 @@ class DB {
     url: string, 
     name: string
   ): Promise<Attachment> {
-    try {
-      const now = new Date().toISOString();
-      
-      let finalUrl = url;
-      if (url.startsWith('blob:')) {
-        finalUrl = `https://firebasestorage.googleapis.com/v0/b/railmadad-229be.appspot.com/o/attachments%2F${complaintId}%2F${name}?alt=media`;
-      }
-      
-      const newAttachmentRef = push(ref(database, `attachments/${complaintId}`));
-      const attachmentId = newAttachmentRef.key!;
-      
-      const newAttachment: Omit<Attachment, 'id'> = {
-        complaintId,
-        type,
-        url: finalUrl,
-        name,
-        createdAt: now
-      };
-      
-      await set(newAttachmentRef, newAttachment);
-      
-      const complaintRef = ref(database, `complaints/${complaintId}`);
-      const complaintSnapshot = await get(complaintRef);
-      if (complaintSnapshot.exists()) {
-        await update(complaintRef, { updatedAt: now });
-      }
-      
-      return {
-        id: attachmentId,
-        ...newAttachment
-      };
-    } catch (error) {
-      console.error("Error adding attachment:", error);
-      throw error;
+    const now = new Date().toISOString();
+    const newAttachment: Attachment = {
+      id: `att-${this.attachments.length + 1}`,
+      complaintId,
+      type,
+      url,
+      name,
+      createdAt: now
+    };
+    
+    this.attachments.push(newAttachment);
+    
+    // Update the complaint with the attachment
+    const complaint = this.complaints.find(c => c.id === complaintId);
+    if (complaint) {
+      complaint.attachments = complaint.attachments ? 
+        [...complaint.attachments, newAttachment] : [newAttachment];
     }
+    
+    return newAttachment;
   }
 
   async getAttachmentsByComplaintId(complaintId: string): Promise<Attachment[]> {
-    try {
-      const attachmentsRef = ref(database, `attachments/${complaintId}`);
-      const snapshot = await get(attachmentsRef);
-      
-      if (snapshot.exists()) {
-        const attachmentsData = snapshot.val();
-        return Object.entries(attachmentsData).map(([id, data]: [string, any]) => ({
-          id,
-          complaintId,
-          type: data.type,
-          url: data.url,
-          name: data.name,
-          createdAt: data.createdAt,
-        }));
-      }
-      return [];
-    } catch (error) {
-      console.error("Error getting attachments:", error);
-      return [];
-    }
+    return this.attachments.filter(a => a.complaintId === complaintId);
   }
 
   async getEmergencyContacts(): Promise<EmergencyContact[]> {
@@ -461,74 +251,26 @@ class DB {
     title: string,
     message: string
   ): Promise<Notification> {
-    try {
-      const now = new Date().toISOString();
-      const newNotifRef = push(ref(database, `notifications/${userId}`));
-      const notificationId = newNotifRef.key!;
-      
-      const notification: Omit<Notification, 'id'> = {
-        userId,
-        title,
-        message,
-        read: false,
-        createdAt: now
-      };
-      
-      await set(newNotifRef, notification);
-      
-      return {
-        id: notificationId,
-        ...notification
-      };
-    } catch (error) {
-      console.error("Error creating notification:", error);
-      throw error;
-    }
+    const notification: Notification = {
+      id: `notif-${this.notifications.length + 1}`,
+      userId,
+      title,
+      message,
+      read: false,
+      createdAt: new Date().toISOString()
+    };
+    this.notifications.push(notification);
+    return notification;
   }
 
   async getNotifications(userId: string): Promise<Notification[]> {
-    try {
-      const notificationsRef = ref(database, `notifications/${userId}`);
-      const snapshot = await get(notificationsRef);
-      
-      if (snapshot.exists()) {
-        const notificationsData = snapshot.val();
-        return Object.entries(notificationsData).map(([id, data]: [string, any]) => ({
-          id,
-          userId,
-          title: data.title,
-          message: data.message,
-          read: data.read,
-          createdAt: data.createdAt,
-        }));
-      }
-      return [];
-    } catch (error) {
-      console.error("Error getting notifications:", error);
-      return [];
-    }
+    return this.notifications.filter(n => n.userId === userId);
   }
 
   async markNotificationAsRead(notificationId: string): Promise<void> {
-    try {
-      const allNotificationsRef = ref(database, 'notifications');
-      const snapshot = await get(allNotificationsRef);
-      
-      if (snapshot.exists()) {
-        const allNotifications = snapshot.val();
-        
-        for (const userId in allNotifications) {
-          if (notificationId in allNotifications[userId]) {
-            await update(ref(database, `notifications/${userId}/${notificationId}`), {
-              read: true
-            });
-            break;
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-      throw error;
+    const notification = this.notifications.find(n => n.id === notificationId);
+    if (notification) {
+      notification.read = true;
     }
   }
 
@@ -538,65 +280,20 @@ class DB {
     content: string,
     isAutoResponse = false
   ): Promise<Message> {
-    try {
-      const now = new Date().toISOString();
-      const newMessageRef = push(ref(database, `messages/${complaintId}`));
-      const messageId = newMessageRef.key!;
-      
-      const message: Omit<Message, 'id'> = {
-        complaintId,
-        senderId,
-        content,
-        isAutoResponse,
-        createdAt: now
-      };
-      
-      await set(newMessageRef, message);
-      
-      return {
-        id: messageId,
-        ...message
-      };
-    } catch (error) {
-      console.error("Error creating message:", error);
-      throw error;
-    }
+    const message: Message = {
+      id: `msg-${this.messages.length + 1}`,
+      complaintId,
+      senderId,
+      content,
+      isAutoResponse,
+      createdAt: new Date().toISOString()
+    };
+    this.messages.push(message);
+    return message;
   }
 
   async getMessagesByComplaintId(complaintId: string): Promise<Message[]> {
-    try {
-      const messagesRef = ref(database, `messages/${complaintId}`);
-      const snapshot = await get(messagesRef);
-      
-      if (snapshot.exists()) {
-        const messagesData = snapshot.val();
-        return Object.entries(messagesData)
-          .map(([id, data]: [string, any]) => ({
-            id,
-            complaintId,
-            senderId: data.senderId,
-            content: data.content,
-            isAutoResponse: data.isAutoResponse,
-            createdAt: data.createdAt,
-          }))
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-      }
-      return [];
-    } catch (error) {
-      console.error("Error getting messages:", error);
-      return [];
-    }
-  }
-
-  async uploadFile(file: File, path: string): Promise<string> {
-    try {
-      const fileRef = storageRef(storage, path);
-      await uploadBytes(fileRef, file);
-      return await getDownloadURL(fileRef);
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      throw error;
-    }
+    return this.messages.filter(m => m.complaintId === complaintId);
   }
 }
 

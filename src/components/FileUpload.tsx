@@ -1,159 +1,168 @@
 
-import { useState } from "react";
+import { useState, useRef, ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { AttachmentType } from "@/types";
-import { UploadCloud, Image, FileVideo, File } from "lucide-react";
+import { Image, FileVideo, File, X, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { db } from "@/services/db";
 
 interface FileUploadProps {
   complaintId: string;
-  onFileUpload: (file: File, fileType: AttachmentType) => Promise<void>;
+  onFileUpload: (file: File, type: AttachmentType) => Promise<void>;
 }
 
 export const FileUpload = ({ complaintId, onFileUpload }: FileUploadProps) => {
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileType, setFileType] = useState<AttachmentType>("image");
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      
-      // Determine file type based on MIME type
-      if (file.type.startsWith("image/")) {
-        setFileType("image");
-      } else if (file.type.startsWith("video/")) {
-        setFileType("video");
-      } else {
-        setFileType("document");
-      }
-      
       setSelectedFile(file);
+      
+      // Create preview for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPreviewUrl(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setPreviewUrl(null);
+      }
     }
   };
-  
+
   const handleUpload = async () => {
-    if (!selectedFile) {
-      toast({
-        title: "No file selected",
-        description: "Please select a file to upload",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!selectedFile) return;
+    
+    setUploading(true);
     
     try {
-      setIsUploading(true);
-      setUploadProgress(10);
+      let fileType: AttachmentType;
       
-      // Simulate progress (in a real app, we'd get this from Firebase)
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 300);
+      if (selectedFile.type.startsWith('image/')) {
+        fileType = 'image';
+      } else if (selectedFile.type.startsWith('video/')) {
+        fileType = 'video';
+      } else {
+        fileType = 'document';
+      }
       
-      // Upload file to Firebase Storage
-      const filePath = `attachments/${complaintId}/${selectedFile.name}`;
-      const downloadUrl = await db.uploadFile(selectedFile, filePath);
-      
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      
-      // Call the passed onFileUpload function with the Firebase URL
       await onFileUpload(selectedFile, fileType);
       
-      toast({
-        title: "File uploaded successfully",
-        description: "Your file has been attached to the complaint",
-      });
-      
+      // Reset state after successful upload
       setSelectedFile(null);
-      setUploadProgress(0);
+      setPreviewUrl(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      toast({
+        title: "File Uploaded",
+        description: "Your file has been successfully attached to the complaint.",
+      });
     } catch (error) {
       toast({
-        title: "Upload failed",
-        description: "There was an error uploading your file. Please try again.",
+        title: "Upload Failed",
+        description: "There was a problem uploading your file.",
         variant: "destructive",
       });
-      console.error("File upload error:", error);
     } finally {
-      setIsUploading(false);
+      setUploading(false);
     }
   };
-  
+
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const getFileIcon = () => {
+    if (!selectedFile) return null;
+    
+    if (selectedFile.type.startsWith('image/')) {
+      return <Image className="h-5 w-5" />;
+    } else if (selectedFile.type.startsWith('video/')) {
+      return <FileVideo className="h-5 w-5" />;
+    } else {
+      return <File className="h-5 w-5" />;
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 transition-colors hover:border-primary/50">
-        {!selectedFile ? (
-          <>
-            <UploadCloud className="h-10 w-10 text-gray-400 mb-2" />
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              Drag and drop your file here, or click to browse
-            </p>
-            <Label htmlFor="file-upload" className="button">
-              <span className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md text-sm">
-                Select File
-              </span>
-            </Label>
-            <input 
-              id="file-upload" 
-              type="file" 
-              className="sr-only" 
-              onChange={handleFileChange}
-              accept="image/*,video/*,.pdf,.doc,.docx,.txt"
-            />
-          </>
-        ) : (
-          <div className="w-full">
-            <div className="flex items-center gap-3 mb-4">
-              {fileType === "image" && <Image className="h-6 w-6 text-blue-500" />}
-              {fileType === "video" && <FileVideo className="h-6 w-6 text-purple-500" />}
-              {fileType === "document" && <File className="h-6 w-6 text-yellow-500" />}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{selectedFile.name}</p>
-                <p className="text-xs text-gray-500">
-                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
-              </div>
-            </div>
-            
-            {isUploading && (
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
-                <div 
-                  className="bg-primary h-2 rounded-full transition-all" 
-                  style={{ width: `${uploadProgress}%` }}
-                ></div>
-              </div>
-            )}
-            
-            <div className="flex gap-2">
-              <Button 
-                onClick={handleUpload} 
-                disabled={isUploading}
-                className="flex-1"
-              >
-                {isUploading ? "Uploading..." : "Upload"}
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setSelectedFile(null)}
-                disabled={isUploading}
-              >
-                Cancel
-              </Button>
-            </div>
+      <div className="flex items-center gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileChange}
+          className="hidden"
+          accept="image/*,video/*,.pdf,.doc,.docx"
+        />
+        <Button 
+          type="button" 
+          variant="outline"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Select File
+        </Button>
+        {selectedFile && (
+          <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-2 rounded-md flex-1">
+            {getFileIcon()}
+            <span className="text-sm truncate">{selectedFile.name}</span>
+            <Button 
+              type="button" 
+              variant="ghost" 
+              size="sm"
+              className="h-6 w-6 p-0 rounded-full"
+              onClick={clearSelectedFile}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         )}
       </div>
+      
+      {previewUrl && (
+        <div className="relative">
+          <img 
+            src={previewUrl} 
+            alt="Preview" 
+            className="max-h-40 rounded-md object-contain"
+          />
+          <Button 
+            type="button" 
+            variant="destructive" 
+            size="sm"
+            className="absolute top-0 right-0 h-6 w-6 p-0 rounded-full"
+            onClick={clearSelectedFile}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+      
+      {selectedFile && (
+        <Button 
+          type="button" 
+          onClick={handleUpload} 
+          disabled={uploading}
+          className="w-full"
+        >
+          {uploading ? "Uploading..." : (
+            <>
+              <Upload className="h-4 w-4 mr-2" />
+              Upload File
+            </>
+          )}
+        </Button>
+      )}
     </div>
   );
 };
