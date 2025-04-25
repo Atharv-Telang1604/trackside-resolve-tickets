@@ -1,7 +1,8 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useComplaints } from "@/contexts/ComplaintContext";
+import { useSupport } from "@/contexts/support/SupportContext";
 import { Navbar } from "@/components/Navbar";
 import { initiateTwilioCall } from "@/services/twilio";
 import { useToast } from "@/components/ui/use-toast";
@@ -30,7 +31,7 @@ import { Button } from "@/components/ui/button";
 
 const Help = () => {
   const { currentUser, logout } = useAuth();
-  const { getFAQs, getEmergencyContacts } = useComplaints();
+  const { getFAQs, getEmergencyContacts } = useSupport();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isCallLoading, setIsCallLoading] = useState<string | null>(null);
@@ -198,3 +199,4 @@ const Help = () => {
 };
 
 export default Help;
+

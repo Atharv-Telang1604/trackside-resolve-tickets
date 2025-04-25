@@ -1,8 +1,8 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useComplaints } from "@/contexts/ComplaintContext";
+import { useComplaints } from "@/contexts/complaints/ComplaintsContext";
+import { useSupport } from "@/contexts/support/SupportContext";
 import { Navbar } from "@/components/Navbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,6 @@ import { PlusCircle, ClipboardList, Phone, HelpCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ChatBot } from "@/components/ChatBot";
 
-// Define the missing interface
 interface NewComplaintFormProps {
   userId: string;
   submitComplaint: (
@@ -39,7 +38,8 @@ interface NewComplaintFormProps {
 
 const CustomerDashboard = () => {
   const { currentUser, logout } = useAuth();
-  const { getUserComplaints, submitComplaint, addAttachment, getEmergencyContacts } = useComplaints();
+  const { getUserComplaints, submitComplaint, addAttachment } = useComplaints();
+  const { getEmergencyContacts } = useSupport();
   const navigate = useNavigate();
   const { toast } = useToast();
   
