@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, ReactNode, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
@@ -53,11 +53,19 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { currentUser } = useAuth();
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
 
-  const { data: complaints = [], isLoading } = useQuery({
+  const { data: complaintsData = [], isLoading: isLoadingComplaints } = useQuery({
     queryKey: ['complaints'],
     queryFn: () => db.getComplaints(),
+    onSuccess: (data) => {
+      setComplaints(data);
+    }
   });
+
+  useEffect(() => {
+    setComplaints(complaintsData);
+  }, [complaintsData]);
 
   const { data: emergencyContacts = [] } = useQuery({
     queryKey: ['emergencyContacts'],
@@ -232,7 +240,7 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
     <ComplaintContext.Provider
       value={{
         complaints,
-        isLoading,
+        isLoading: isLoadingComplaints,
         submitComplaint,
         updateComplaintStatus,
         getUserComplaints,

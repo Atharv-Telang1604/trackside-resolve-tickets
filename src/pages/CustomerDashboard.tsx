@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +19,23 @@ import { Attachment, AttachmentType, Complaint, ComplaintType } from "@/types";
 import { PlusCircle, ClipboardList, Phone, HelpCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ChatBot } from "@/components/ChatBot";
+
+// Define the missing interface
+interface NewComplaintFormProps {
+  userId: string;
+  submitComplaint: (
+    userId: string,
+    type: ComplaintType,
+    location: string,
+    description: string
+  ) => Promise<Complaint>;
+  addAttachment: (
+    complaintId: string,
+    type: AttachmentType,
+    url: string,
+    name: string
+  ) => Promise<Attachment>;
+}
 
 const CustomerDashboard = () => {
   const { currentUser, logout } = useAuth();

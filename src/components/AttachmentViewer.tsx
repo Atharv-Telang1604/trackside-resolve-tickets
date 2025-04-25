@@ -1,65 +1,87 @@
 
+import { useState } from "react";
 import { Attachment } from "@/types";
-import { Card } from "@/components/ui/card";
-import { Image, FileVideo, File } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { FileIcon, ImageIcon, FileVideo2 } from "lucide-react";
 
 interface AttachmentViewerProps {
   attachments: Attachment[];
 }
 
 export const AttachmentViewer = ({ attachments }: AttachmentViewerProps) => {
+  const [selectedAttachment, setSelectedAttachment] = useState<Attachment | null>(null);
+  
   if (!attachments || attachments.length === 0) {
     return null;
   }
-
-  const renderAttachment = (attachment: Attachment) => {
-    switch (attachment.type) {
-      case 'image':
-        return (
-          <div className="relative">
-            <img 
-              src={attachment.url} 
-              alt={attachment.name} 
-              className="rounded-md w-full h-auto object-cover"
-            />
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-1 text-xs truncate">
-              {attachment.name}
-            </div>
-          </div>
-        );
-      case 'video':
-        return (
-          <div className="relative bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center h-24">
-            <FileVideo className="h-8 w-8 text-gray-500" />
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-1 text-xs truncate">
-              {attachment.name}
-            </div>
-          </div>
-        );
-      case 'document':
-        return (
-          <div className="relative bg-gray-200 dark:bg-gray-700 rounded-md flex items-center justify-center h-24">
-            <File className="h-8 w-8 text-gray-500" />
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-1 text-xs truncate">
-              {attachment.name}
-            </div>
-          </div>
-        );
+  
+  const getAttachmentIcon = (type: string) => {
+    switch (type) {
+      case "image":
+        return <ImageIcon className="h-4 w-4" />;
+      case "video":
+        return <FileVideo2 className="h-4 w-4" />;
       default:
-        return null;
+        return <FileIcon className="h-4 w-4" />;
     }
   };
-
+  
   return (
-    <div className="space-y-2">
-      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-        Attachments ({attachments.length})
-      </h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+    <div>
+      <h4 className="text-sm font-medium mb-2">Attachments ({attachments.length})</h4>
+      <div className="flex flex-wrap gap-2">
         {attachments.map((attachment) => (
-          <Card key={attachment.id} className="overflow-hidden">
-            {renderAttachment(attachment)}
-          </Card>
+          <Dialog key={attachment.id}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2 text-xs"
+                onClick={() => setSelectedAttachment(attachment)}
+              >
+                {getAttachmentIcon(attachment.type)}
+                <span className="truncate max-w-[100px]">{attachment.name}</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>{attachment.name}</DialogTitle>
+                <DialogDescription>
+                  Added on {new Date(attachment.createdAt).toLocaleDateString()}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="mt-4">
+                {attachment.type === "image" ? (
+                  <img
+                    src={attachment.url}
+                    alt={attachment.name}
+                    className="max-h-[500px] w-auto mx-auto object-contain rounded-md"
+                  />
+                ) : attachment.type === "video" ? (
+                  <video
+                    src={attachment.url}
+                    controls
+                    className="max-h-[500px] w-auto mx-auto object-contain rounded-md"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-8 bg-gray-50 dark:bg-gray-800 rounded-md">
+                    <FileIcon className="h-12 w-12 text-gray-400 mb-4" />
+                    <p className="text-sm text-center mb-4">{attachment.name}</p>
+                    <a
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md text-sm"
+                    >
+                      Download Document
+                    </a>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
         ))}
       </div>
     </div>
