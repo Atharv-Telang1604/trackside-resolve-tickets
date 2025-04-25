@@ -58,8 +58,9 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
   const { data: complaintsData = [], isLoading: isLoadingComplaints } = useQuery({
     queryKey: ['complaints'],
     queryFn: () => db.getComplaints(),
-    onSuccess: (data) => {
+    select: (data) => {
       setComplaints(data);
+      return data;
     }
   });
 
