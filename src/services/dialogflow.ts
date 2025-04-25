@@ -8,34 +8,48 @@ const DIALOGFLOW_CONFIG = {
   projectId: "railmadadchatbot-lngs"
 };
 
+// Mock responses for common train-related queries when we can't use the Dialogflow API in browser
+const mockResponses = {
+  "train schedule": "Train schedules can be viewed on our website or mobile app. You can also call our customer service at 1-800-RAIL-INFO for the latest schedule information.",
+  "ticket": "You can purchase tickets online, through our mobile app, at station counters, or from ticket vending machines at all major stations.",
+  "delay": "We apologize for any delays. Real-time train status updates are available on our mobile app and digital displays at stations.",
+  "platform": "Platform information is displayed on the digital boards at the station and announced 20 minutes before arrival. You can also check our mobile app for real-time platform updates.",
+  "wifi": "We provide complimentary WiFi on all our premium trains and at major stations. Connect to 'RailMadad-Free' network and follow the instructions.",
+  "electrical": "For electrical issues like charging ports not working or lights malfunctioning, please alert the train conductor or submit a complaint through our app.",
+  "food": "Food and beverage services are available in the dining car on long-distance trains. Major stations also have food courts and vendors on platforms.",
+  "clean": "If you notice cleanliness issues, please report them to the onboard staff or use the 'Report Cleanliness' feature in our mobile app.",
+  "luggage": "Each passenger is allowed two pieces of luggage (up to 50 pounds each) without additional charges. Extra or overweight luggage will incur fees.",
+  "help": "For immediate assistance, please press the help button located above your seat or contact the train attendant. For emergencies, call our 24/7 helpline at 1-800-RAIL-HELP."
+};
+
+// Function to detect the intent using our mock system in the browser
 export const detectIntent = async (text: string): Promise<string> => {
   try {
-    const sessionId = Math.random().toString(36).substring(7);
-    const dialogflow = require('@google-cloud/dialogflow');
-    const sessionClient = new dialogflow.SessionsClient({
-      credentials: DIALOGFLOW_CONFIG.credentials,
-      projectId: DIALOGFLOW_CONFIG.projectId
-    });
+    // Log the incoming message for debugging
+    console.log('Processing message:', text);
     
-    const sessionPath = sessionClient.projectAgentSessionPath(
-      DIALOGFLOW_CONFIG.projectId,
-      sessionId
-    );
-
-    const request = {
-      session: sessionPath,
-      queryInput: {
-        text: {
-          text: text,
-          languageCode: 'en-US',
-        },
-      },
-    };
-
-    const responses = await sessionClient.detectIntent(request);
-    return responses[0].queryResult.fulfillmentText || "I couldn't understand that.";
+    // Convert to lowercase for case-insensitive matching
+    const lowerText = text.toLowerCase();
+    
+    // Check our mock responses for matching keywords
+    for (const [keyword, response] of Object.entries(mockResponses)) {
+      if (lowerText.includes(keyword)) {
+        console.log(`Found matching keyword: ${keyword}`);
+        return response;
+      }
+    }
+    
+    // If we have no specific match, return a general response
+    if (lowerText.includes("how") || lowerText.includes("what") || lowerText.includes("when") || 
+        lowerText.includes("where") || lowerText.includes("why")) {
+      return "I can help you with information about train schedules, tickets, platforms, WiFi, food services, and reporting issues. Could you please specify what you need assistance with?";
+    }
+    
+    // Default fallback response for unrecognized queries
+    return "I'm here to help with your train journey. You can ask me about schedules, tickets, station facilities, onboard services, or reporting issues.";
+    
   } catch (error) {
-    console.error('Error with Dialogflow:', error);
-    return "Sorry, I'm having trouble understanding you right now.";
+    console.error('Error processing message:', error);
+    return "Sorry, I'm having trouble understanding you right now. Please try asking in a different way or contact our customer service.";
   }
 };
