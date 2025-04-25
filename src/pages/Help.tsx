@@ -1,9 +1,10 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useComplaints } from "@/contexts/ComplaintContext";
 import { Navbar } from "@/components/Navbar";
+import { initiateTwilioCall } from "@/services/twilio";
+import { useToast } from "@/components/ui/use-toast";
 import { 
   Accordion, 
   AccordionContent, 
@@ -20,21 +21,23 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   HelpCircle, 
-  Phone, 
+  Phone,
   Mail, 
   BookOpen,
   CheckCircle
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const Help = () => {
   const { currentUser, logout } = useAuth();
   const { getFAQs, getEmergencyContacts } = useComplaints();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isCallLoading, setIsCallLoading] = useState<string | null>(null);
   
   const faqs = getFAQs();
   const emergencyContacts = getEmergencyContacts();
   
-  // Group FAQs by category
   const faqsByCategory = faqs.reduce((acc, faq) => {
     if (!acc[faq.category]) {
       acc[faq.category] = [];
@@ -44,6 +47,25 @@ const Help = () => {
   }, {} as Record<string, typeof faqs>);
   
   const categories = Object.keys(faqsByCategory);
+
+  const handleEmergencyCall = async (phoneNumber: string, contactName: string) => {
+    setIsCallLoading(phoneNumber);
+    const success = await initiateTwilioCall(phoneNumber);
+    setIsCallLoading(null);
+
+    if (success) {
+      toast({
+        title: "Call Initiated",
+        description: `Connecting you with ${contactName}...`,
+      });
+    } else {
+      toast({
+        title: "Call Failed",
+        description: "Unable to connect the call. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -117,12 +139,21 @@ const Help = () => {
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4 text-blue-500" />
-                            <a 
-                              href={`tel:${contact.phoneNumber}`} 
-                              className="text-blue-600 dark:text-blue-400 hover:underline"
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-blue-600 dark:text-blue-400 hover:bg-blue-50"
+                              onClick={() => handleEmergencyCall(contact.phoneNumber, contact.name)}
+                              disabled={!!isCallLoading}
                             >
-                              {contact.phoneNumber}
-                            </a>
+                              {isCallLoading === contact.phoneNumber ? 
+                                "Connecting..." : 
+                                <>
+                                  <Phone className="h-4 w-4 mr-2" />
+                                  Call {contact.phoneNumber}
+                                </>
+                              }
+                            </Button>
                           </div>
                           
                           {contact.email && (

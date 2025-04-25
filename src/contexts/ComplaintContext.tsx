@@ -1,5 +1,6 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   Complaint, 
   ComplaintStatus, 
@@ -51,6 +52,7 @@ const ComplaintContext = createContext<ComplaintContextType | undefined>(undefin
 export function ComplaintProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { currentUser } = useAuth();
 
   const { data: complaints = [], isLoading } = useQuery({
     queryKey: ['complaints'],
@@ -68,8 +70,9 @@ export function ComplaintProvider({ children }: { children: ReactNode }) {
   });
 
   const { data: notifications = [] } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: () => db.getNotifications(currentUser?.id || ''),
+    queryKey: ['notifications', currentUser?.id],
+    queryFn: () => currentUser ? db.getNotifications(currentUser.id) : [],
+    enabled: !!currentUser,
   });
 
   const submitMutation = useMutation({
